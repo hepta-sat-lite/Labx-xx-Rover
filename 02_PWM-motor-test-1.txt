@@ -1,0 +1,77 @@
+#include "mbed.h"
+#include "HEPTA_EPS.h"
+
+// -------------------------
+// PCとのシリアル通信
+// -------------------------
+RawSerial pc(USBTX, USBRX, 9600); // TX, RXピンを使用したシリアル通信（9600bps）
+HEPTA_EPS eps(PA_0, PA_4);        // HEPTA-EPS（電力システム）制御用オブジェクト
+
+// -------------------------
+// DCモーター制御用ピンの設定
+// -------------------------
+PwmOut In1(PB_1); // モーター右 入力1 (PWM)
+PwmOut In2(PA_8); // モーター右 入力2 (PWM)
+PwmOut In3(PA_6); // モーター左 入力3 (PWM)
+PwmOut In4(PB_0); // モーター左 入力4 (PWM)
+
+// -------------------------
+// PWMの設定
+// -------------------------
+float period = 0.02;  // 周期 (秒) 例: 20ms (50Hz PWM)
+float duty_cycle = 0.0; // 初期デューティ比 (0.0 - 1.0)
+float step = 0.01;      // デューティ比の増減幅
+bool increasing = true; // デューティ比を増加させるか減少させるかのフラグ
+
+// -------------------------
+// モーター動作関数
+// -------------------------
+
+// モーター停止
+void Stop() {
+    pc.printf("モーター停止\r\n");
+    In1 = 0; // PWM出力を0に設定
+    In2 = 0;
+    In3 = 0;
+    In4 = 0;
+}
+
+// モーターを前進させる（じんわり動作）
+void Forward() {
+    Stop(); // 安全のために一度停止
+    pc.printf("前進 (じんわり開始)\r\n");
+
+    while (1) {
+        // PWM信号を調整してじんわり動作させる
+        In1 = duty_cycle; // 右モーター
+        In2 = duty_cycle;        // 右モーター逆方向OFF
+        In3 = duty_cycle; // 左モーター
+        In4 = duty_cycle;        // 左モーター逆方向OFF
+
+        // デューティ比を増減
+        if (increasing) {
+            duty_cycle += step;
+            if (duty_cycle >= 0.9) { // 最大値に達したら減少方向へ
+                increasing = false;
+            }
+        } else {
+            duty_cycle -= step;
+            if (duty_cycle <= 0.1) { // 最小値に達したら増加方向へ
+                increasing = true;
+            }
+        }
+
+        wait(period); // 周期に基づいて待機
+    }
+}
+
+// -------------------------
+// メイン関数
+// -------------------------
+int main() {
+    eps.turn_on_regulator(); // HEPTA-EPSの3.3VコンバータをONにする
+    while (1) {
+        Forward(); // モーターをじんわり前進
+        wait(2);   // 2秒間前進
+    }
+}

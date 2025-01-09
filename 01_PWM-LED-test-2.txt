@@ -1,0 +1,36 @@
+#include "mbed.h"
+
+
+DigitalOut led(PA_5); // LED2 LED制御用のデジタル出力ピンを定義
+RawSerial pc(USBTX,USBRX, 9600);
+
+// PWMの設定
+float period = 0.02;  // 周期 (秒) 例: 20ms (50Hz PWM)
+float duty_cycle = 0.0; // 初期デューティ比 (0.0 - 1.0)
+float step = 0.01;      // デューティ比の増減幅
+bool increasing = true; // 明るさを増やすか減らすかのフラグ
+
+int main() {
+    while (1) {
+        // LEDをON (デューティ比分だけ点灯)
+        led = 1;
+        wait(duty_cycle * period);
+
+        // LEDをOFF (残りの周期で消灯)
+        led = 0;
+        wait((1.0 - duty_cycle) * period);
+
+        // デューティ比を増減
+        if (increasing) {
+            duty_cycle += step; // デューティ比を増加
+            if (duty_cycle >= 0.9) { // 最大値に達したら減少方向へ
+                increasing = false;
+            }
+        } else {
+            duty_cycle -= step; // デューティ比を減少
+            if (duty_cycle <= 0.1) { // 最小値に達したら増加方向へ
+                increasing = true;
+            }
+        }
+    }
+}

@@ -1,0 +1,20 @@
+#include "mbed.h"
+
+// LED制御用のデジタル出力ピンを定義
+DigitalOut led(PA_5); // LED2
+
+// PWMの設定
+float duty_cycle = 0.5; // デューティ比 (0.0 - 1.0)
+float period = 1;   // 周期 (秒) 例: 10ms
+
+int main() {
+    while (1) {
+        // LEDをON (デューティ比分だけ点灯)
+        led = 1; // HIGH
+        wait(duty_cycle * period); // デューティ比に応じた時間だけ点灯
+
+        // LEDをOFF (残りの周期で消灯)
+        led = 0; // LOW
+        wait((1.0 - duty_cycle) * period); // 残りの時間だけ消灯
+    }
+}
