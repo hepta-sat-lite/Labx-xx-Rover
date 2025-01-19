@@ -1,0 +1,44 @@
+#include "mbed.h"
+#include "LITE_CDH.h"
+#include "LITE_EPS.h"
+#include "LITE_SENSOR.h"
+LITE_CDH cdh(PB_5, PB_4, PB_3, PA_8, "sd", PA_3);
+LITE_EPS eps(PA_0,PA_4);
+LITE_SENSOR sensor(PA_7,PB_7,PB_6);
+RawSerial gs(USBTX,USBRX,9600);
+Timer sattime;
+
+
+int main() {
+    gs.printf("Operation Start...\r\n");
+    float batvol,temp; //Voltage, Temerature
+    float ax,ay,az,gx,gy,gz,mx,my,mz; //9axis value
+
+    sattime.start(); //Timer
+
+    eps.turn_on_regulator(); 
+    sensor.set_up();
+
+    while(1){
+        //Sensing and Transmitting HK data
+        eps.vol(&batvol);
+        sensor.sen_acc(&ax,&ay,&az);
+        sensor.sen_gyro(&gx,&gy,&gz);
+        sensor.sen_mag(&mx,&my,&mz);
+        sensor.temp_sense(&temp);
+        gs.printf("Time = %f [s],"
+        "BatVol = %.2f [V],"
+        "Temp = %.2f [C]\r\n"
+        "Acceleration = %f,%f,%f [deg/s]\r\n"
+        "Angular velocity = %f,%f,%f [deg/s]\r\n"
+        "Geomagnetism = %f,%f,%f [μT]\r\n", 
+        sattime.read(), 
+        batvol, 
+        temp, 
+        ax, ay, az, 
+        gx, gy, gz, 
+        mx, my, mz);
+        wait(1);
+    }
+}
+           

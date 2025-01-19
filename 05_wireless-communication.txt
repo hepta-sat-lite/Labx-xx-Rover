@@ -1,0 +1,148 @@
+#include "mbed.h"
+#include "LITE_CDH.h"
+#include "LITE_EPS.h"
+#include "LITE_SENSOR.h"
+#include "LITE_COM.h"
+LITE_CDH cdh(PB_5, PB_4, PB_3, PA_8, "sd", PA_3);
+LITE_EPS eps(PA_0,PA_4);
+LITE_SENSOR sensor(PA_7,PB_7,PB_6);
+RawSerial gs(USBTX,USBRX,9600);
+LITE_COM com(PA_9,PA_10,9600);
+Timer sattime;
+
+int rcmd = 0, cmdflag = 0; //command variable
+
+// -------------------------
+// DCモーター制御用ピンの設定
+// -------------------------
+DigitalOut In1(PB_1); // モーター右 入力1
+DigitalOut In2(PA_8); // モーター右 入力2
+DigitalOut In3(PA_6); // モーター左 入力3
+DigitalOut In4(PB_0); // モーター左 入力4
+
+// -------------------------
+// モーター動作関数
+// -------------------------
+
+// モーター停止
+void Stop() {
+    com.printf("モーター停止\r\n");
+    In1 = 0; // 右モーター入力1をLOW
+    In2 = 0; // 右モーター入力2をLOW
+    In3 = 0; // 左モーター入力3をLOW
+    In4 = 0; // 左モーター入力4をLOW
+}
+
+// ローバを前進させる
+void Forward() {
+    com.printf("前進\r\n");
+    In1 = 1; // 右モーター入力1をHIGH
+    In2 = 1; // 右モーター入力2をHIGH
+    In3 = 1; // 左モーター入力3をHIGH
+    In4 = 1; // 左モーター入力4をHIGH
+}
+
+// ローバを右回転させる
+void TurnRight() {
+    com.printf("右回転\r\n");
+    In1 = 1; // 右モーター入力1をHIGH
+    In2 = 1; // 右モーター入力2をHIGH
+    In3 = 0; // 左モーター入力3をLOW
+    In4 = 0; // 左モーター入力4をLOW
+}
+
+// ローバを左回転させる
+void TurnLeft() {
+    com.printf("左回転\r\n");
+    In1 = 0; // 右モーター入力1をLOW
+    In2 = 0; // 右モーター入力2をLOW
+    In3 = 1; // 左モーター入力3をHIGH
+    In4 = 1; // 左モーター入力4をHIGH
+}
+
+// ローバを後進させる
+void Back() {
+    com.printf("後退\r\n");
+    In1 = 1; // 右モーター入力1をHIGH
+    In2 = 0; // 右モーター入力2をLOW
+    In3 = 1; // 左モーター入力3をHIGH
+    In4 = 0; // 左モーター入力4をLOW
+}
+
+
+
+int main() {
+    com.printf("Operation Start...\r\n");
+    float batvol,temp; //Voltage, Temerature
+    float ax,ay,az,gx,gy,gz,mx,my,mz; //9axis value
+
+    sattime.start(); //Timer
+
+    eps.turn_on_regulator(); 
+    sensor.set_up();
+    cdh.turn_on_analogSW();//turn on transceiver
+
+    char str[100];
+    mkdir("/sd/mydir", 0777);
+    FILE *fp = fopen("/sd/mydir/test.txt","w");
+    if(fp == NULL) {
+        error("Could not open file for write\r\n");
+    }
+    fprintf(fp,"time,batvol,temp,ax, ay, az,gx, gy, gz, mx, my, mz\r\n");
+
+    
+    while(1){
+        //Sensing and Transmitting HK data
+        eps.vol(&batvol);
+        sensor.sen_acc(&ax,&ay,&az);
+        sensor.sen_gyro(&gx,&gy,&gz);
+        sensor.sen_mag(&mx,&my,&mz);
+        sensor.temp_sense(&temp);
+        com.printf("Time %.2f,"
+        "BatVol %.2f,"
+        "Temp %.2f\r\n",
+        sattime.read(), 
+        batvol, 
+        temp );
+        com.printf(
+        "Accel %.2f,%.2f,%.2f\r\n"
+        "Angular %.2f,%.2f,%.2f\r\n"
+        "mag %.2f,%.2f,%.2f\r\n", 
+        ax, ay, az, 
+        gx, gy, gz, 
+        mx, my, mz);
+       
+        fprintf(fp,"%f,%.2f,%.2f,%f,%f,%f,%f,%f,%f,%f,%f,%f\r\n", 
+        sattime.read(), 
+        batvol, 
+        temp, 
+        ax, ay, az, 
+        gx, gy, gz, 
+        mx, my, mz);
+        
+        wait(1);
+
+        com.xbee_receive(&rcmd,&cmdflag);
+        if(cmdflag == 1){
+            if(rcmd == 'a'){
+                Forward(); // ローバ前進
+                wait(2);   // x秒間前進
+                Stop(); 
+            } else if(rcmd == 'b'){
+                TurnRight(); // ローバ右回転
+                wait(0.1);   // x秒間右回転
+                Stop(); 
+            }else if(rcmd == 'c'){
+                TurnLeft(); // ローバ左回転
+                wait(0.1);   // x秒間左回転
+                Stop(); 
+            }else if(rcmd == 'd'){
+                Back();  // ローバ後退
+                wait(0.1);   // x秒間後退
+                Stop(); 
+            }
+            com.initialize();
+        }
+    }
+}
+           
